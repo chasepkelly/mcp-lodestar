@@ -29,8 +29,19 @@ class LodeStarMCPServer {
     const configManager = ConfigManager.getInstance();
 
     this.server = new Server(
-      { name: 'LodeStar MCP Server', version: '2.0.0' },
-      { capabilities: { resources: {}, tools: {}, prompts: {} } }
+      { 
+        name: 'LodeStar MCP Server', 
+        version: '2.0.0' 
+      },
+      { 
+        capabilities: { 
+          resources: { 
+            mimeTypes: ['text/markdown', 'application/json']
+          }, 
+          tools: {}, 
+          prompts: {} 
+        }
+      }
     );
 
     this.axiosInstance = axios.create({
@@ -50,27 +61,38 @@ class LodeStarMCPServer {
   }
 
   private setupHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () =>
-      this.toolHandlers.getToolDefinitions()
-    );
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) =>
-      this.toolHandlers.handleToolCall(
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      Logger.info('Handling ListTools request');
+      return this.toolHandlers.getToolDefinitions();
+    });
+    
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      Logger.info(`Handling CallTool request: ${request.params.name}`);
+      return this.toolHandlers.handleToolCall(
         request.params.name,
         request.params.arguments
-      )
-    );
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () =>
-      this.toolHandlers.getResources()
-    );
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
-      this.toolHandlers.readResource(request.params.uri)
-    );
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () =>
-      this.toolHandlers.getPrompts()
-    );
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) =>
-      this.toolHandlers.getPrompt(request.params.name)
-    );
+      );
+    });
+    
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      Logger.info('Handling ListResources request');
+      return this.toolHandlers.getResources();
+    });
+    
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      Logger.info(`Handling ReadResource request: ${request.params.uri}`);
+      return this.toolHandlers.readResource(request.params.uri);
+    });
+    
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      Logger.info('Handling ListPrompts request');
+      return this.toolHandlers.getPrompts();
+    });
+    
+    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      Logger.info(`Handling GetPrompt request: ${request.params.name}`);
+      return this.toolHandlers.getPrompt(request.params.name);
+    });
   }
 
   private setupErrorHandling(): void {
@@ -84,9 +106,15 @@ class LodeStarMCPServer {
   }
 
   async run(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    Logger.info('LodeStar MCP Server started');
+    try {
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      Logger.info('LodeStar MCP Server started successfully');
+      Logger.info('Server is ready to handle MCP requests');
+    } catch (error) {
+      Logger.error('Failed to start server', error);
+      process.exit(1);
+    }
   }
 }
 
