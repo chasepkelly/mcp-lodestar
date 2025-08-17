@@ -12,7 +12,6 @@ coverage/
 
 # Development dependencies
 node_modules/
-package-lock.json
 
 # Configuration files
 .eslintrc.json

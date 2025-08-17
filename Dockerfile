@@ -6,15 +6,12 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including dev dependencies for building)
+RUN npm ci
 
 # Copy TypeScript files and configuration
 COPY tsconfig.json ./
 COPY src ./src
-
-# Install dev dependencies for building
-RUN npm install --save-dev typescript @types/node
 
 # Build the application
 RUN npm run build
@@ -32,11 +29,11 @@ RUN addgroup -g 1001 -S mcp && \
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Copy built application from builder stage
-COPY --from=builder /app/build ./build
+COPY --from=builder /app/dist ./dist
 
 # Copy any additional files needed at runtime
 COPY LICENSE ./
@@ -49,4 +46,4 @@ RUN chown -R mcp:mcp /app
 USER mcp
 
 # The actual command will be provided by smithery.yaml
-CMD ["node", "build/index.js"]
+CMD ["node", "dist/index.js"]
