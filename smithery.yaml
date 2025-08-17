@@ -1,75 +1,33 @@
 name: mcp-lodestar
-description: Calculate closing costs, title fees, recording fees, transfer taxes, and property taxes for real estate transactions using the LodeStar API
-author: Chase P Kelly
-homepage: https://github.com/chasepkelly/mcp-lodestar
-repository: https://github.com/chasepkelly/mcp-lodestar
-license: MIT
+description: MCP Server for LodeStar title and closing cost calculations
+version: 2.0.0
 
-startCommand:
-  type: stdio
-  configSchema:
-    type: object
-    required:
-      - LODESTAR_USERNAME
-      - LODESTAR_PASSWORD
-    properties:
-      LODESTAR_USERNAME:
-        type: string
-        description: "Your LodeStar account email address"
-        format: email
-      LODESTAR_PASSWORD:
-        type: string
-        description: "Your LodeStar account password"
-        format: password
-      LODESTAR_CLIENT_NAME:
-        type: string
-        description: "Your LodeStar client name (defaults to LodeStar_Demo)"
-        default: "LodeStar_Demo"
-      LODESTAR_BASE_URL:
-        type: string
-        description: "LodeStar API base URL (defaults to production URL)"
-        default: "https://www.lodestarss.com"
-        format: uri
-  commandFunction: |
-    (config) => ({
-      command: 'node',
-      args: ['dist/index.js'],
-      env: {
-        LODESTAR_USERNAME: config.LODESTAR_USERNAME,
-        LODESTAR_PASSWORD: config.LODESTAR_PASSWORD,
-        LODESTAR_CLIENT_NAME: config.LODESTAR_CLIENT_NAME || 'LodeStar_Demo',
-        LODESTAR_BASE_URL: config.LODESTAR_BASE_URL || 'https://www.lodestarss.com'
-      }
-    })
+# Smithery CLI handles the HTTP transport automatically
+# No Dockerfile needed for TypeScript projects using Smithery CLI
 
-buildCommand:
-  command: 'npm'
-  args: ['run', 'build']
+configSchema:
+  type: object
+  properties:
+    apiKey:
+      type: string
+      description: LodeStar API key (optional for demo mode)
+    clientId:
+      type: string
+      description: LodeStar client ID (optional for demo mode)
+    clientSecret:
+      type: string
+      description: LodeStar client secret (optional for demo mode)
+    apiBaseUrl:
+      type: string
+      description: LodeStar API base URL (optional, defaults to production)
+  exampleConfig:
+    apiKey: "your-api-key-here"
+    clientId: "your-client-id"
+    clientSecret: "your-client-secret"
+    apiBaseUrl: "https://api.lodestar.com"
 
-tags:
-  - lodestar
-  - closing-costs
-  - title-insurance
-  - property-tax
-  - real-estate
-  - mortgage
-  - refinance
-  - escrow
-  - recording-fees
-  - transfer-taxes
-
-categories:
-  - Real Estate
-  - Finance
-  - Legal
-
-deployment:
-  localOnly: false
-  dockerSupported: true
-  nodeVersion: "20"
-  
 metadata:
-  icon: "🏠"
-  version: "2.0.0"
-  minNodeVersion: "18.0.0"
-  maxNodeVersion: "22.0.0"
+  version: 2.0.0
+  author: Your Name
+  license: MIT
+  repository: https://github.com/yourusername/mcp-lodestar

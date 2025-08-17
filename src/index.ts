@@ -10,120 +10,132 @@ import {
   GetPromptRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
+import { z } from 'zod';
 
 import { CONSTANTS } from './constants.js';
 import { Logger, LogLevel } from './logger.js';
-import { ConfigManager } from './config.js';
 import { SessionManager } from './session-manager.js';
 import { ToolHandlers } from './tool-handlers.js';
 
-class LodeStarMCPServer {
-  private server: Server;
-  private axiosInstance: AxiosInstance;
-  private sessionManager: SessionManager;
-  private toolHandlers: ToolHandlers;
+// Define session configuration schema for Smithery
+export const configSchema = z.object({
+  apiKey: z.string().optional().describe("LodeStar API key (optional for demo mode)"),
+  clientId: z.string().optional().describe("LodeStar client ID (optional for demo mode)"),
+  clientSecret: z.string().optional().describe("LodeStar client secret (optional for demo mode)"),
+  apiBaseUrl: z.string().optional().describe("LodeStar API base URL (optional, defaults to production)"),
+});
 
-  constructor() {
-    Logger.setLogLevel(LogLevel.INFO);
-    const configManager = ConfigManager.getInstance();
-
-    this.server = new Server(
-      { 
-        name: 'LodeStar MCP Server', 
-        version: '2.0.0' 
+export default function createServer({
+  config,
+}: {
+  config: z.infer<typeof configSchema>;
+}) {
+  Logger.setLogLevel(LogLevel.INFO);
+  
+  const server = new Server(
+    {
+      name: 'LodeStar MCP Server',
+      version: '2.0.0',
+    },
+    {
+      capabilities: {
+        resources: {
+          mimeTypes: ['text/markdown', 'application/json'],
+        },
+        tools: {},
+        prompts: {},
       },
-      { 
-        capabilities: { 
-          resources: { 
-            mimeTypes: ['text/markdown', 'application/json']
-          }, 
-          tools: {}, 
-          prompts: {} 
-        }
-      }
+    }
+  );
+
+  // Create axios instance with config
+  const apiBaseUrl = config.apiBaseUrl || 'https://api.lodestar.com';
+  const axiosInstance = axios.create({
+    baseURL: apiBaseUrl,
+    timeout: CONSTANTS.REQUEST_TIMEOUT_MS,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  // Create session manager and tool handlers
+  const sessionManager = SessionManager.getInstance(axiosInstance);
+  const toolHandlers = new ToolHandlers(axiosInstance, sessionManager);
+
+  // Set up request handlers
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    Logger.info('Handling ListTools request');
+    return toolHandlers.getToolDefinitions();
+  });
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    Logger.info(`Handling CallTool request: ${request.params.name}`);
+    return toolHandlers.handleToolCall(
+      request.params.name,
+      request.params.arguments
     );
+  });
 
-    this.axiosInstance = axios.create({
-      baseURL: configManager.getApiBaseUrl(),
-      timeout: CONSTANTS.REQUEST_TIMEOUT_MS,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    Logger.info('Handling ListResources request');
+    return toolHandlers.getResources();
+  });
 
-    this.sessionManager = SessionManager.getInstance(this.axiosInstance);
-    this.toolHandlers = new ToolHandlers(
-      this.axiosInstance,
-      this.sessionManager
-    );
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    Logger.info(`Handling ReadResource request: ${request.params.uri}`);
+    return toolHandlers.readResource(request.params.uri);
+  });
 
-    this.setupHandlers();
-    this.setupErrorHandling();
-  }
+  server.setRequestHandler(ListPromptsRequestSchema, async () => {
+    Logger.info('Handling ListPrompts request');
+    return toolHandlers.getPrompts();
+  });
 
-  private setupHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      Logger.info('Handling ListTools request');
-      return this.toolHandlers.getToolDefinitions();
-    });
-    
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      Logger.info(`Handling CallTool request: ${request.params.name}`);
-      return this.toolHandlers.handleToolCall(
-        request.params.name,
-        request.params.arguments
-      );
-    });
-    
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      Logger.info('Handling ListResources request');
-      return this.toolHandlers.getResources();
-    });
-    
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      Logger.info(`Handling ReadResource request: ${request.params.uri}`);
-      return this.toolHandlers.readResource(request.params.uri);
-    });
-    
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
-      Logger.info('Handling ListPrompts request');
-      return this.toolHandlers.getPrompts();
-    });
-    
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-      Logger.info(`Handling GetPrompt request: ${request.params.name}`);
-      return this.toolHandlers.getPrompt(request.params.name);
-    });
-  }
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    Logger.info(`Handling GetPrompt request: ${request.params.name}`);
+    return toolHandlers.getPrompt(request.params.name);
+  });
 
-  private setupErrorHandling(): void {
-    this.server.onerror = (error) => Logger.error('MCP Error', error);
+  // Set up error handling
+  server.onerror = (error) => Logger.error('MCP Error', error);
+
+  return server;
+}
+
+// STDIO compatibility for local development
+async function main() {
+  try {
+    // Use environment variables for local development
+    const config = {
+      apiKey: process.env.LODESTAR_API_KEY,
+      clientId: process.env.LODESTAR_CLIENT_ID,
+      clientSecret: process.env.LODESTAR_CLIENT_SECRET,
+      apiBaseUrl: process.env.LODESTAR_API_BASE_URL,
+    };
+
+    const server = createServer({ config });
+    
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    
+    Logger.info('LodeStar MCP Server started successfully in STDIO mode');
+    Logger.info('Server is ready to handle MCP requests');
+    
+    // Handle shutdown
     process.on('SIGINT', async () => {
       Logger.info('Shutting down...');
-      this.sessionManager.clearSession();
-      await this.server.close();
+      await server.close();
       process.exit(0);
     });
-  }
-
-  async run(): Promise<void> {
-    try {
-      const transport = new StdioServerTransport();
-      await this.server.connect(transport);
-      Logger.info('LodeStar MCP Server started successfully');
-      Logger.info('Server is ready to handle MCP requests');
-    } catch (error) {
-      Logger.error('Failed to start server', error);
-      process.exit(1);
-    }
+  } catch (error) {
+    Logger.error('Failed to start server', error);
+    process.exit(1);
   }
 }
 
-// ES Module compatible main execution check
+// Only run main() if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  new LodeStarMCPServer().run().catch((error) => {
+  main().catch((error) => {
     Logger.error('Fatal error', error);
     process.exit(1);
   });
 }
-
-export { LodeStarMCPServer };
