@@ -52,6 +52,5 @@ temp/
 *.log
 
 # Package manager files (will be generated in container)
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
