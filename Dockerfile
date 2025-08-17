@@ -6,15 +6,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for building)
-RUN npm ci
+# Install all dependencies (including dev dependencies for building) - ignore scripts initially
+RUN npm ci --ignore-scripts
 
 # Copy TypeScript files and configuration
 COPY tsconfig.json ./
 COPY src ./src
 
-# Build the application
-RUN npm run build
+# Now run the prepare script (which will build the project)
+RUN npm run prepare
 
 # Production stage
 FROM node:20-alpine
