@@ -33,7 +33,7 @@ startCommand:
   commandFunction: |
     (config) => ({
       command: 'node',
-      args: ['build/index.js'],
+      args: ['dist/index.js'],
       env: {
         LODESTAR_USERNAME: config.LODESTAR_USERNAME,
         LODESTAR_PASSWORD: config.LODESTAR_PASSWORD,
@@ -41,6 +41,10 @@ startCommand:
         LODESTAR_BASE_URL: config.LODESTAR_BASE_URL || 'https://www.lodestarss.com'
       }
     })
+
+buildCommand:
+  command: 'npm'
+  args: ['run', 'build']
 
 tags:
   - lodestar
@@ -66,6 +70,6 @@ deployment:
   
 metadata:
   icon: "🏠"
-  version: "1.0.0"
+  version: "2.0.0"
   minNodeVersion: "18.0.0"
   maxNodeVersion: "22.0.0"

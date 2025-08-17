@@ -1,0 +1,42 @@
+# Development files
+src/
+tests/
+.github/
+.vscode/
+.idea/
+
+# Build artifacts (will be built by Smithery)
+dist/
+coverage/
+*.tsbuildinfo
+
+# Development dependencies
+node_modules/
+package-lock.json
+
+# Configuration files
+.eslintrc.json
+.prettierrc
+tsconfig.json
+jest.config.js
+
+# Documentation
+*.md
+!README.md
+
+# Environment files
+.env*
+.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp

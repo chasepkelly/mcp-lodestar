@@ -1,51 +1,77 @@
 {
-  "name": "@chasepkelly/mcp-lodestar",
-  "version": "1.0.0",
-  "description": "MCP Server for LodeStar API - Calculate closing costs, title fees, and property taxes",
-  "main": "build/index.js",
+  "name": "mcp-lodestar",
+  "version": "2.0.0",
   "type": "module",
+  "description": "MCP server for LodeStar title and closing cost calculations",
+  "main": "dist/index.js",
   "bin": {
-    "mcp-lodestar": "./build/index.js"
+    "lodestar-mcp": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "start": "node build/index.js",
-    "test": "tsx src/test.ts",
-    "prepare": "npm run build"
+    "start": "node dist/index.js",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "clean": "rm -rf dist coverage",
+    "rebuild": "npm run clean && npm run build",
+    "demo": "DEMO_MODE=true npm start",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "format:check": "prettier --check src/**/*.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest --testMatch='**/*.unit.test.ts'",
+    "test:integration": "jest --testMatch='**/*.integration.test.ts'",
+    "precommit": "npm run lint && npm run type-check && npm test",
+    "prepare": "npm run build",
+    "validate": "npm run type-check && npm run lint && npm run test"
   },
   "keywords": [
     "mcp",
-    "mcp-server",
     "lodestar",
+    "title",
     "closing-costs",
-    "title-insurance",
-    "property-tax",
     "real-estate",
     "mortgage"
   ],
-  "author": "LodeStar Software Solutions",
+  "author": "Your Name",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/chasepkelly/mcp-lodestar.git"
-  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "axios": "^1.7.0",
-    "zod": "^3.23.0"
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "@types/node": "^20.10.0",
+    "@types/jest": "^29.5.8",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
   },
-  "files": [
-    "build",
-    "README.md",
-    "LICENSE"
-  ],
   "engines": {
     "node": ">=18.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/src", "<rootDir>/tests"],
+    "testMatch": ["**/__tests__/**/*.ts", "**/?(*.)+(spec|test).ts"],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.d.ts",
+      "!src/**/*.test.ts",
+      "!src/index.ts"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"]
   }
 }
