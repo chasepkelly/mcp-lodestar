@@ -1,0 +1,71 @@
+name: mcp-lodestar
+description: Calculate closing costs, title fees, recording fees, transfer taxes, and property taxes for real estate transactions using the LodeStar API
+author: Chase P Kelly
+homepage: https://github.com/chasepkelly/mcp-lodestar
+repository: https://github.com/chasepkelly/mcp-lodestar
+license: MIT
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - LODESTAR_USERNAME
+      - LODESTAR_PASSWORD
+    properties:
+      LODESTAR_USERNAME:
+        type: string
+        description: "Your LodeStar account email address"
+        format: email
+      LODESTAR_PASSWORD:
+        type: string
+        description: "Your LodeStar account password"
+        format: password
+      LODESTAR_CLIENT_NAME:
+        type: string
+        description: "Your LodeStar client name (defaults to LodeStar_Demo)"
+        default: "LodeStar_Demo"
+      LODESTAR_BASE_URL:
+        type: string
+        description: "LodeStar API base URL (defaults to production URL)"
+        default: "https://www.lodestarss.com"
+        format: uri
+  commandFunction: |
+    (config) => ({
+      command: 'node',
+      args: ['build/index.js'],
+      env: {
+        LODESTAR_USERNAME: config.LODESTAR_USERNAME,
+        LODESTAR_PASSWORD: config.LODESTAR_PASSWORD,
+        LODESTAR_CLIENT_NAME: config.LODESTAR_CLIENT_NAME || 'LodeStar_Demo',
+        LODESTAR_BASE_URL: config.LODESTAR_BASE_URL || 'https://www.lodestarss.com'
+      }
+    })
+
+tags:
+  - lodestar
+  - closing-costs
+  - title-insurance
+  - property-tax
+  - real-estate
+  - mortgage
+  - refinance
+  - escrow
+  - recording-fees
+  - transfer-taxes
+
+categories:
+  - Real Estate
+  - Finance
+  - Legal
+
+deployment:
+  localOnly: false
+  dockerSupported: true
+  nodeVersion: "20"
+  
+metadata:
+  icon: "🏠"
+  version: "1.0.0"
+  minNodeVersion: "18.0.0"
+  maxNodeVersion: "22.0.0"

@@ -1,0 +1,51 @@
+{
+  "name": "@chasepkelly/mcp-lodestar",
+  "version": "1.0.0",
+  "description": "MCP Server for LodeStar API - Calculate closing costs, title fees, and property taxes",
+  "main": "build/index.js",
+  "type": "module",
+  "bin": {
+    "mcp-lodestar": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node build/index.js",
+    "test": "tsx src/test.ts",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "lodestar",
+    "closing-costs",
+    "title-insurance",
+    "property-tax",
+    "real-estate",
+    "mortgage"
+  ],
+  "author": "LodeStar Software Solutions",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chasepkelly/mcp-lodestar.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.7.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
