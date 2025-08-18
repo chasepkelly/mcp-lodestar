@@ -148,7 +148,7 @@ async function startHttpServer() {
           res.end(JSON.stringify({ 
             status: 'ok', 
             service: 'LodeStar MCP Server',
-            version: '2.1.2'
+            version: '2.1.3'
           }));
           return;
         }
