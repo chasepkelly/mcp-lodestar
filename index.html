@@ -195,6 +195,54 @@
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
+        
+        .closing-costs-result,
+        .property-tax-result,
+        .title-companies-result {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .closing-costs-result h3,
+        .property-tax-result h3,
+        .title-companies-result h3 {
+            color: #00A64F;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .closing-costs-result h4,
+        .property-tax-result h4,
+        .title-companies-result h4 {
+            color: #161616;
+            margin: 15px 0 8px 0;
+            font-size: 1em;
+        }
+        
+        .closing-costs-result ul,
+        .property-tax-result ul,
+        .title-companies-result ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        
+        .closing-costs-result li,
+        .property-tax-result li,
+        .title-companies-result li {
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+        
+        .closing-costs-result p,
+        .property-tax-result p,
+        .title-companies-result p {
+            margin: 8px 0;
+            line-height: 1.4;
+        }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -255,7 +303,7 @@
         const MCP_SERVER_URL = 'https://mcp-lodestar-production.up.railway.app/mcp';
         let sessionId = generateSessionId(); // Use consistent session ID
         let isConnected = false;
-        const APP_VERSION = '2.0.0'; // Cache busting
+        const APP_VERSION = '2.0.3'; // Cache busting
 
         // Initialize connection
         async function initializeConnection() {
@@ -340,6 +388,8 @@
             
             if (response.result) {
                 const result = response.result;
+                
+                // Tools list
                 if (result.tools) {
                     let toolsHtml = '<strong>Available Tools:</strong><br><br>';
                     result.tools.forEach(tool => {
@@ -349,8 +399,85 @@
                     return toolsHtml;
                 }
                 
+                // Direct text content
                 if (result.content) {
                     return result.content[0]?.text || JSON.stringify(result, null, 2);
+                }
+                
+                // Closing costs
+                if (result.success && result.demo_mode && result.total_closing_costs) {
+                    let html = '<div class="closing-costs-result">';
+                    html += '<h3>🏠 Closing Cost Calculation Results</h3>';
+                    html += `<p><strong>Location:</strong> ${result.location?.township || 'Unknown'}, ${result.location?.state || 'Unknown'}</p>`;
+                    html += `<p><strong>Transaction Type:</strong> ${result.transaction_type || 'Purchase'}</p>`;
+                    if (result.title_fees) {
+                        html += '<h4>📋 Title Fees:</h4><ul>';
+                        Object.entries(result.title_fees).forEach(([fee, amount]) => {
+                            html += `<li><strong>${fee}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                        });
+                        html += '</ul>';
+                    }
+                    if (result.title_insurance) {
+                        html += '<h4>🛡️ Title Insurance:</h4><ul>';
+                        Object.entries(result.title_insurance).forEach(([policy, amount]) => {
+                            html += `<li><strong>${policy}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                        });
+                        html += '</ul>';
+                    }
+                    if (result.recording_fees) {
+                        html += '<h4>📄 Recording Fees:</h4><ul>';
+                        Object.entries(result.recording_fees).forEach(([fee, amount]) => {
+                            html += `<li><strong>${fee}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                        });
+                        html += '</ul>';
+                    }
+                    html += `<h3>💰 <strong>Total Closing Costs: $${Number(result.total_closing_costs).toLocaleString()}</strong></h3>`;
+                    html += `<p><em>${result.disclaimer || 'DEMO MODE - Sample calculations'}</em></p>`;
+                    html += '</div>';
+                    return html;
+                }
+                
+                // Property tax
+                if (result.success && result.demo_mode && result.annual_taxes) {
+                    let html = '<div class="property-tax-result">';
+                    html += '<h3>📊 Property Tax Information</h3>';
+                    html += `<p><strong>Property Address:</strong> ${result.property_address || '123 Main Street'}</p>`;
+                    if (result.annual_taxes) {
+                        html += '<h4>🏛️ Annual Tax Breakdown:</h4><ul>';
+                        Object.entries(result.annual_taxes).forEach(([tax, amount]) => {
+                            if (tax !== 'total_annual') {
+                                html += `<li><strong>${tax.replace('_', ' ').toUpperCase()}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                            }
+                        });
+                        html += '</ul>';
+                        html += `<p><strong>Total Annual Taxes:</strong> $${Number(result.annual_taxes.total_annual || 0).toLocaleString()}</p>`;
+                    }
+                    html += `<p><strong>Monthly Escrow Payment:</strong> $${Number(result.monthly_escrow || 0).toLocaleString()}</p>`;
+                    html += `<p><strong>Proration Amount:</strong> $${Number(result.proration_amount || 0).toLocaleString()}</p>`;
+                    html += `<p><em>${result.disclaimer || 'DEMO MODE - Sample property tax'}</em></p>`;
+                    html += '</div>';
+                    return html;
+                }
+                
+                // Title companies
+                if (result.success && result.demo_mode && result.sub_agents) {
+                    let html = '<div class="title-companies-result">';
+                    html += '<h3>🏢 Title Companies</h3>';
+                    html += `<p><strong>Location:</strong> ${result.state || 'TX'}, ${result.county || 'Travis'} County</p>`;
+                    if (Array.isArray(result.sub_agents) && result.sub_agents.length > 0) {
+                        html += '<h4>Available Title Companies:</h4><ul>';
+                        result.sub_agents.forEach(agent => {
+                            html += `<li><strong>${agent.name || 'Title Company'}</strong><br>`;
+                            html += `   ${agent.address || 'Address not available'}<br>`;
+                            html += `   Phone: ${agent.phone || 'Phone not available'}</li>`;
+                        });
+                        html += '</ul>';
+                    } else {
+                        html += '<p>No title companies found in this area.</p>';
+                    }
+                    html += `<p><em>${result.disclaimer || 'DEMO MODE - Sample data'}</em></p>`;
+                    html += '</div>';
+                    return html;
                 }
                 
                 return `<pre>${JSON.stringify(result, null, 2)}</pre>`;
