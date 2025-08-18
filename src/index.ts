@@ -32,6 +32,7 @@ export default function createServer({
   config: z.infer<typeof configSchema>;
 }) {
   Logger.setLogLevel(LogLevel.INFO);
+  Logger.info('Creating LodeStar MCP Server...');
   
   const server = new Server(
     {
@@ -49,8 +50,12 @@ export default function createServer({
     }
   );
 
+  Logger.info('Server instance created successfully');
+
   // Create axios instance with config
   const apiBaseUrl = config.apiBaseUrl || 'https://api.lodestar.com';
+  Logger.info(`Configuring axios with base URL: ${apiBaseUrl}`);
+  
   const axiosInstance = axios.create({
     baseURL: apiBaseUrl,
     timeout: CONSTANTS.REQUEST_TIMEOUT_MS,
@@ -58,10 +63,13 @@ export default function createServer({
   });
 
   // Create session manager and tool handlers
+  Logger.info('Creating session manager and tool handlers...');
   const sessionManager = SessionManager.getInstance(axiosInstance);
   const toolHandlers = new ToolHandlers(axiosInstance, sessionManager);
+  Logger.info('Session manager and tool handlers created successfully');
 
   // Set up request handlers
+  Logger.info('Setting up MCP request handlers...');
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     Logger.info('Handling ListTools request');
     return toolHandlers.getToolDefinitions();
@@ -98,6 +106,7 @@ export default function createServer({
   // Set up error handling
   server.onerror = (error) => Logger.error('MCP Error', error);
 
+  Logger.info('LodeStar MCP Server setup completed successfully');
   return server;
 }
 
