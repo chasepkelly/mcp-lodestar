@@ -285,6 +285,15 @@
                 <button class="quick-action" onclick="sendQuickMessage('Find title companies in Travis County, TX')">
                     🏢 Title Companies
                 </button>
+                <button class="quick-action" onclick="sendQuickMessage('Closing costs in New York, NY')">
+                    🏠 NY Closing Costs
+                </button>
+                <button class="quick-action" onclick="sendQuickMessage('Closing costs in Los Angeles, CA')">
+                    🏠 CA Closing Costs
+                </button>
+                <button class="quick-action" onclick="sendQuickMessage('Closing costs in Miami, FL')">
+                    🏠 FL Closing Costs
+                </button>
             </div>
             
             <div class="input-container">
@@ -674,6 +683,29 @@
                 }
                 return null;
             }
+
+            function extractCityState(text) {
+                const cleaned = text.replace(/[!?]/g, ' ').replace(/\s+/g, ' ').trim();
+                // Pattern: in City, State
+                let m = cleaned.match(/(?:in|at)\s+([A-Za-z .'-]+?),\s*([A-Za-z]{2}|[A-Za-z ]+)/i);
+                if (m) {
+                    const state = toStateAbbreviation(m[2]);
+                    if (state) return { city: m[1].trim(), state };
+                }
+                // Pattern: City, State
+                m = cleaned.match(/^([A-Za-z .'-]+?),\s*([A-Za-z]{2}|[A-Za-z ]+)$/i);
+                if (m) {
+                    const state = toStateAbbreviation(m[2]);
+                    if (state) return { city: m[1].trim(), state };
+                }
+                // Pattern: City State
+                m = cleaned.match(/^([A-Za-z .'-]+?)\s+([A-Za-z]{2}|[A-Za-z ]+)$/i);
+                if (m) {
+                    const state = toStateAbbreviation(m[2]);
+                    if (state) return { city: m[1].trim(), state };
+                }
+                return null;
+            }
             
             // Closing cost calculations
             if (lowerMessage.includes('closing cost')) {
@@ -692,6 +724,30 @@
                             purchase_price: 375000,
                             close_date: '2025-09-15',
                             address: `${parsed.address}, ${parsed.city}, ${parsed.state}${parsed.zip ? ' ' + parsed.zip : ''}`,
+                            include_pdf: 1,
+                            include_property_tax: 1,
+                            include_section: 1,
+                            include_payee_info: 1
+                        }
+                    };
+                }
+                // Allow city/state-only phrasing for demo with a sensible placeholder street
+                const cityState = extractCityState(message);
+                if (cityState) {
+                    const placeholderStreet = cityState.state === 'NY' ? '123 Broadway' : '123 Main Street';
+                    return {
+                        name: 'closing_cost_calculations',
+                        arguments: {
+                            state: cityState.state,
+                            county: 'Travis', // Demo default remains
+                            township: cityState.city,
+                            search_type: 'CFPB',
+                            purpose: '11',
+                            filename: `demo-${Date.now()}`,
+                            loan_amount: 300000,
+                            purchase_price: 375000,
+                            close_date: '2025-09-15',
+                            address: `${placeholderStreet}, ${cityState.city}, ${cityState.state}`,
                             include_pdf: 1,
                             include_property_tax: 1,
                             include_section: 1,
