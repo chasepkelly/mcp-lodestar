@@ -647,8 +647,9 @@
             }
             
             function extractStreetCityState(text) {
+                const cleaned = text.replace(/[!?]/g, ' ').replace(/\s+/g, ' ').trim();
                 // Pattern 1: 123 Main St, Austin, TX 78736
-                let m = text.match(/(\d{1,6}\s+[^,\n]+?),?\s+([A-Za-z .'-]+?),?\s+([A-Za-z]{2}|[A-Za-z ]+)(?:\s+(\d{5}))?/i);
+                let m = cleaned.match(/(\d{1,6}\s+[^,\n]+?),\s*([A-Za-z .'-]+?),\s*([A-Za-z]{2}|[A-Za-z ]+)(?:\s+(\d{5}))?/i);
                 if (m) {
                     const state = toStateAbbreviation(m[3]);
                     if (state) {
@@ -656,7 +657,15 @@
                     }
                 }
                 // Pattern 2: 456 Elm Rd in Dallas, Texas 75201
-                m = text.match(/(\d{1,6}\s+[^,\n]+?)\s+(?:in|at)\s+([A-Za-z .'-]+?),?\s+([A-Za-z]{2}|[A-Za-z ]+)(?:\s+(\d{5}))?/i);
+                m = cleaned.match(/(\d{1,6}\s+[^,\n]+?)\s+(?:in|at)\s+([A-Za-z .'-]+?),?\s+([A-Za-z]{2}|[A-Za-z ]+)(?:\s+(\d{5}))?/i);
+                if (m) {
+                    const state = toStateAbbreviation(m[3]);
+                    if (state) {
+                        return { address: m[1].trim(), city: m[2].trim(), state, zip: m[4] || '' };
+                    }
+                }
+                // Pattern 3: 789 Pine Ave Denver CO 80202 (spaces only)
+                m = cleaned.match(/(\d{1,6}\s+[^,\n]+?)\s+([A-Za-z .'-]+?)\s+([A-Za-z]{2})(?:\s+(\d{5}))?/i);
                 if (m) {
                     const state = toStateAbbreviation(m[3]);
                     if (state) {
@@ -690,6 +699,8 @@
                         }
                     };
                 }
+                // If no address parsed but intent is clear, prompt-friendly fallback
+                return null;
             }
             
             // Property tax
