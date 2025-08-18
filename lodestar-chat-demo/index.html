@@ -631,7 +631,18 @@
                     const data = await response.json();
                     addMessage(data);
                 } else {
-                    addMessage('I can help you with closing costs, property taxes, title companies, and more. Try asking about a specific property or service.');
+                    // DEMO fallback: synthesize responses when intent is clear but address parsing failed
+                    if (lowerMessage.includes('closing cost')) {
+                        const region = inferRegionFromMessage(message);
+                        const demo = synthesizeDemoClosingCosts(region.city, region.state);
+                        addMessage({ result: demo });
+                    } else if (lowerMessage.includes('property tax') || lowerMessage.includes('tax info')) {
+                        const region = inferRegionFromMessage(message);
+                        const demo = synthesizeDemoPropertyTax(region.city, region.state);
+                        addMessage({ result: demo });
+                    } else {
+                        addMessage('I can help you with closing costs, property taxes, title companies, and more. Try asking about a specific property or service.');
+                    }
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -797,6 +808,81 @@
             }
             
             return null;
+        }
+
+        // DEMO HELPERS
+        function inferRegionFromMessage(message) {
+            const parsedFull = extractStreetCityState(message);
+            if (parsedFull) return { city: parsedFull.city || 'Austin', state: parsedFull.state || 'TX' };
+            const parsedCityState = extractCityState(message);
+            if (parsedCityState) return { city: parsedCityState.city || 'Austin', state: parsedCityState.state || 'TX' };
+            // Default demo location
+            return { city: 'Austin', state: 'TX' };
+        }
+
+        function synthesizeDemoClosingCosts(city, state) {
+            // Simple regional factors for demo variability
+            const basePrice = 375000;
+            const regionalFactor = { NY: 1.35, CA: 1.25, FL: 1.1, TX: 1.0 }[state] || 1.15;
+            const rnd = (min, max) => Math.round(min + (max - min) * Math.random());
+
+            const titleFees = {
+                'Settlement Fee': rnd(850, 1150) * regionalFactor,
+                'Title Search': rnd(350, 550) * regionalFactor,
+                'Title Examination': rnd(175, 275) * regionalFactor,
+                'Document Preparation': rnd(125, 200) * regionalFactor,
+                'Notary Fees': rnd(35, 75) * regionalFactor
+            };
+            const titleInsurance = {
+                "Lenders Policy": rnd(900, 1300) * regionalFactor,
+                "Owners Policy": rnd(1200, 1800) * regionalFactor
+            };
+            const recordingFees = {
+                'Deed Recording': rnd(90, 160) * regionalFactor,
+                'Mortgage Recording': rnd(140, 220) * regionalFactor,
+                'Transfer Tax': Math.round(basePrice * (state === 'NY' ? 0.014 : state === 'CA' ? 0.011 : state === 'FL' ? 0.009 : 0.01))
+            };
+
+            const sum = obj => Object.values(obj).reduce((a, b) => a + Math.round(b), 0);
+            const total = sum(titleFees) + sum(titleInsurance) + sum(recordingFees);
+
+            return {
+                success: true,
+                demo_mode: true,
+                transaction_type: 'Purchase',
+                location: { state, county: 'Demo', township: city },
+                title_fees: toCurrencyRounded(titleFees),
+                title_insurance: toCurrencyRounded(titleInsurance),
+                recording_fees: toCurrencyRounded(recordingFees),
+                total_closing_costs: Math.round(total),
+                disclaimer: 'DEMO MODE - Estimated sample for demonstration'
+            };
+        }
+
+        function synthesizeDemoPropertyTax(city, state) {
+            const regionalFactor = { NY: 1.25, CA: 1.1, FL: 0.95, TX: 1.05 }[state] || 1.0;
+            const totalAnnual = Math.round(4500 * regionalFactor);
+            const breakdown = {
+                county_tax: Math.round(totalAnnual * 0.6),
+                city_tax: Math.round(totalAnnual * 0.25),
+                school_tax: Math.round(totalAnnual * 0.15),
+                total_annual: totalAnnual
+            };
+            return {
+                success: true,
+                demo_mode: true,
+                property_address: `${city} (${state})`,
+                annual_taxes: breakdown,
+                monthly_escrow: Math.round(totalAnnual / 12),
+                proration_amount: Math.round((totalAnnual / 365) * 180),
+                disclaimer: 'DEMO MODE - Estimated sample property tax'
+            };
+        }
+
+        function toCurrencyRounded(obj) {
+            const out = {};
+            Object.entries(obj).forEach(([k, v]) => { out[k] = Math.round(Number(v)); });
+            return out;
         }
 
         function sendQuickMessage(message) {
