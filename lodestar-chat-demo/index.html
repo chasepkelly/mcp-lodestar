@@ -303,7 +303,7 @@
         const MCP_SERVER_URL = 'https://mcp-lodestar-production.up.railway.app/mcp';
         let sessionId = generateSessionId(); // Use consistent session ID
         let isConnected = false;
-        const APP_VERSION = '2.0.2'; // Cache busting
+        const APP_VERSION = '2.0.4'; // Cache busting
 
         // Initialize connection
         async function initializeConnection() {
@@ -401,7 +401,16 @@
                 
                 // Handle content responses
                 if (result.content) {
-                    return result.content[0]?.text || JSON.stringify(result, null, 2);
+                    const rawText = result.content[0]?.text || '';
+                    // If the server returned JSON-as-text, parse and pretty format it
+                    try {
+                        const parsed = JSON.parse(rawText);
+                        const html = formatStructuredResult(parsed);
+                        if (html) return html;
+                        return `<pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+                    } catch (e) {
+                        return rawText;
+                    }
                 }
                 
                 // Handle closing cost calculations
@@ -493,6 +502,83 @@
             }
             
             return `<pre>${JSON.stringify(response, null, 2)}</pre>`;
+        }
+
+        // Formats known structured results into human-friendly HTML
+        function formatStructuredResult(obj) {
+            if (!obj || typeof obj !== 'object') return '';
+            // Closing costs
+            if (obj.success && obj.demo_mode && obj.total_closing_costs) {
+                let html = '<div class="closing-costs-result">';
+                html += '<h3>🏠 Closing Cost Calculation Results</h3>';
+                html += `<p><strong>Location:</strong> ${obj.location?.township || 'Unknown'}, ${obj.location?.state || 'Unknown'}</p>`;
+                html += `<p><strong>Transaction Type:</strong> ${obj.transaction_type || 'Purchase'}</p>`;
+                if (obj.title_fees) {
+                    html += '<h4>📋 Title Fees:</h4><ul>';
+                    Object.entries(obj.title_fees).forEach(([fee, amount]) => {
+                        html += `<li><strong>${fee}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                if (obj.title_insurance) {
+                    html += '<h4>🛡️ Title Insurance:</h4><ul>';
+                    Object.entries(obj.title_insurance).forEach(([policy, amount]) => {
+                        html += `<li><strong>${policy}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                if (obj.recording_fees) {
+                    html += '<h4>📄 Recording Fees:</h4><ul>';
+                    Object.entries(obj.recording_fees).forEach(([fee, amount]) => {
+                        html += `<li><strong>${fee}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                html += `<h3>💰 <strong>Total Closing Costs: $${Number(obj.total_closing_costs).toLocaleString()}</strong></h3>`;
+                html += `<p><em>${obj.disclaimer || 'DEMO MODE - Sample calculations'}</em></p>`;
+                html += '</div>';
+                return html;
+            }
+            // Property tax
+            if (obj.success && obj.demo_mode && obj.annual_taxes) {
+                let html = '<div class="property-tax-result">';
+                html += '<h3>📊 Property Tax Information</h3>';
+                html += `<p><strong>Property Address:</strong> ${obj.property_address || ''}</p>`;
+                if (obj.annual_taxes) {
+                    html += '<h4>🏛️ Annual Tax Breakdown:</h4><ul>';
+                    Object.entries(obj.annual_taxes).forEach(([tax, amount]) => {
+                        if (tax !== 'total_annual') {
+                            html += `<li><strong>${tax.replace('_', ' ').toUpperCase()}:</strong> $${Number(amount).toLocaleString()}</li>`;
+                        }
+                    });
+                    html += '</ul>';
+                    html += `<p><strong>Total Annual Taxes:</strong> $${Number(obj.annual_taxes.total_annual || 0).toLocaleString()}</p>`;
+                }
+                html += `<p><strong>Monthly Escrow Payment:</strong> $${Number(obj.monthly_escrow || 0).toLocaleString()}</p>`;
+                html += `<p><strong>Proration Amount:</strong> $${Number(obj.proration_amount || 0).toLocaleString()}</p>`;
+                html += `<p><em>${obj.disclaimer || 'DEMO MODE - Sample property tax'}</em></p>`;
+                html += '</div>';
+                return html;
+            }
+            // Title companies
+            if (obj.success && obj.demo_mode && obj.sub_agents) {
+                let html = '<div class="title-companies-result">';
+                html += '<h3>🏢 Title Companies</h3>';
+                html += `<p><strong>Location:</strong> ${obj.state || ''}, ${obj.county || ''} County</p>`;
+                if (Array.isArray(obj.sub_agents) && obj.sub_agents.length > 0) {
+                    html += '<h4>Available Title Companies:</h4><ul>';
+                    obj.sub_agents.forEach(agent => {
+                        html += `<li><strong>${agent.name || 'Title Company'}</strong><br>`;
+                        html += `   ${agent.address || ''}<br>`;
+                        html += `   Phone: ${agent.phone || ''}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                html += `<p><em>${obj.disclaimer || 'DEMO MODE - Sample data'}</em></p>`;
+                html += '</div>';
+                return html;
+            }
+            return '';
         }
 
         async function sendMessage() {
