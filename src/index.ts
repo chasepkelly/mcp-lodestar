@@ -27,12 +27,17 @@ export const configSchema = z.object({
 });
 
 export default function createServer({
+  sessionId,
   config,
 }: {
+  sessionId?: string;
   config: z.infer<typeof configSchema>;
 }) {
   Logger.setLogLevel(LogLevel.INFO);
   Logger.info('Creating LodeStar MCP Server...');
+  if (sessionId) {
+    Logger.info(`Session ID: ${sessionId}`);
+  }
   
   const server = new Server(
     {
