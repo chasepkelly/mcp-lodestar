@@ -41,10 +41,9 @@ tests
 *.spec.js
 *.spec.ts
 
-# Development files
+# Development files (but keep tsconfig.json)
 .eslintrc.json
 .prettierrc
-tsconfig.json
 jest.config.js
 
 # Temporary files
