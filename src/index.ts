@@ -144,17 +144,39 @@ async function startHttpServer() {
         
         // Handle health check
         if (req.url === '/health') {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ 
-            status: 'ok', 
+                    res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type'
+          });
+          res.end(JSON.stringify({
+            status: 'ok',
             service: 'LodeStar MCP Server',
-            version: '2.1.3'
+            version: '2.1.6'
           }));
           return;
         }
         
+        // Handle CORS preflight requests
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Session-Id',
+            'Access-Control-Max-Age': '86400'
+          });
+          res.end();
+          return;
+        }
+
         // Handle MCP requests
         if (req.url === '/mcp' || req.url?.startsWith('/mcp/')) {
+          // Add CORS headers for MCP requests
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Mcp-Session-Id');
+          
           // Ensure proper Accept headers for N8N compatibility
           const acceptHeader = req.headers.accept || '';
           if (!acceptHeader.includes('application/json') && !acceptHeader.includes('text/event-stream')) {
