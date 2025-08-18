@@ -2,6 +2,7 @@
 // src/index.ts
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -110,10 +111,10 @@ export default function createServer({
   return server;
 }
 
-// Railway/HTTP transport support
+// Railway/HTTP transport support with proper MCP Streamable HTTP
 async function startHttpServer() {
   try {
-    Logger.info('Starting HTTP server for Railway deployment...');
+    Logger.info('Starting Streamable HTTP server for Railway deployment...');
     
     // Use environment variables for configuration
     const config = {
@@ -125,37 +126,26 @@ async function startHttpServer() {
 
     const server = createServer({ config });
     
-    // For Railway, we need to create a simple HTTP server that can handle MCP requests
-    // This is a simplified approach - in production you might want to use a proper HTTP transport
-    const port = process.env.PORT || 3000;
-    
-    // Create a basic HTTP server for health checks
-    const http = await import('http');
-    const httpServer = http.createServer((req, res) => {
-      if (req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service: 'LodeStar MCP Server' }));
-      } else {
-        res.writeHead(404);
-        res.end('Not Found');
-      }
+    // Create Streamable HTTP transport for proper MCP communication
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => `lodestar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     });
 
-    httpServer.listen(port, () => {
-      Logger.info(`HTTP server listening on port ${port}`);
-      Logger.info('LodeStar MCP Server ready for Railway deployment');
-    });
+    // Connect the server to the transport
+    await server.connect(transport);
+    
+    Logger.info('Streamable HTTP transport connected successfully');
+    Logger.info('LodeStar MCP Server ready for Railway deployment with N8N compatibility');
 
     // Handle shutdown
     process.on('SIGINT', async () => {
-      Logger.info('Shutting down HTTP server...');
-      httpServer.close();
+      Logger.info('Shutting down Streamable HTTP server...');
       await server.close();
       process.exit(0);
     });
 
   } catch (error) {
-    Logger.error('Failed to start HTTP server', error);
+    Logger.error('Failed to start Streamable HTTP server', error);
     process.exit(1);
   }
 }
