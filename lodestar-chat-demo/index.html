@@ -651,8 +651,29 @@
             sendButton.innerHTML = '<div class="loading"></div>';
             
             try {
+                // If we're not connected to the MCP server, fall back to demo responses
                 if (!isConnected) {
-                    addMessage('❌ Not connected to MCP server. Please refresh the page.');
+                    const toolCall = parseMessageForTool(message);
+                    const lower = message.toLowerCase();
+                    if (toolCall?.name === 'closing_cost_calculations' || lower.includes('closing cost')) {
+                        const region = inferRegionFromMessage(message);
+                        const demo = synthesizeDemoClosingCosts(region.city, region.state);
+                        addMessage({ result: demo });
+                        return;
+                    }
+                    if (toolCall?.name === 'property_tax' || lower.includes('property tax') || lower.includes('tax info')) {
+                        const region = inferRegionFromMessage(message);
+                        const demo = synthesizeDemoPropertyTax(region.city, region.state);
+                        addMessage({ result: demo });
+                        return;
+                    }
+                    if (toolCall?.name === 'get_sub_agents' || lower.includes('title company')) {
+                        const region = inferRegionFromMessage(message);
+                        const demo = synthesizeDemoTitleCompanies(region.city, region.state);
+                        addMessage({ result: demo });
+                        return;
+                    }
+                    addMessage('I can help you with closing costs, property taxes, and title companies. Try a request like "Closing costs in Austin, TX".');
                     return;
                 }
                 
@@ -933,6 +954,22 @@
             const out = {};
             Object.entries(obj).forEach(([k, v]) => { out[k] = Math.round(Number(v)); });
             return out;
+        }
+
+        function synthesizeDemoTitleCompanies(city, state) {
+            const companies = [
+                { name: `${city} Title Co`, address: `${Math.floor(100 + Math.random()*800)} Market St, ${city}, ${state}`, phone: '(555) 555-0123' },
+                { name: `${city} Premier Title`, address: `${Math.floor(100 + Math.random()*800)} Main Ave, ${city}, ${state}`, phone: '(555) 555-0456' },
+                { name: `${city} Secure Title Services`, address: `${Math.floor(100 + Math.random()*800)} Center Rd, ${city}, ${state}`, phone: '(555) 555-0789' }
+            ];
+            return {
+                success: true,
+                demo_mode: true,
+                state,
+                county: 'Demo',
+                sub_agents: companies,
+                disclaimer: 'DEMO MODE - Sample title companies'
+            };
         }
 
         function sendQuickMessage(message) {
