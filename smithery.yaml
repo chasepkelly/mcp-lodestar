@@ -2,8 +2,13 @@ name: mcp-lodestar
 description: MCP Server for LodeStar title and closing cost calculations
 version: 2.0.0
 
-# Smithery CLI handles the HTTP transport automatically
-# No Dockerfile needed for TypeScript projects using Smithery CLI
+# This project uses Smithery CLI for automatic HTTP transport
+# No Dockerfile needed - Smithery CLI handles containerization
+
+deployment:
+  type: cli
+  buildCommand: npm run build:http
+  startCommand: npm run start:http
 
 configSchema:
   type: object
@@ -31,3 +36,9 @@ metadata:
   author: Your Name
   license: MIT
   repository: https://github.com/yourusername/mcp-lodestar
+  tags:
+    - lodestar
+    - closing-costs
+    - title-insurance
+    - real-estate
+    - mcp-server
