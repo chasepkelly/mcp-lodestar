@@ -52,6 +52,61 @@
             font-size: 14px;
         }
 
+        .demo-controls {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .demo-badge {
+            background: #00A64F;
+            color: #0b1f14;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .demo-badge.live {
+            background: #6c757d;
+            color: #fff;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 24px;
+        }
+        .switch input { display: none; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #6c757d;
+            transition: .2s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; top: 3px;
+            background-color: white;
+            transition: .2s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #00A64F;
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+        .toggle-label {
+            font-size: 12px;
+            color: #cbd5d1;
+            margin-left: 6px;
+        }
+
         .chat-messages {
             flex: 1;
             padding: 20px;
@@ -255,6 +310,14 @@
         <div class="header">
             <h1>🏠 LodeStar MCP Chat</h1>
             <p>Real Estate Closing Cost Calculator & Title Services</p>
+            <div class="demo-controls">
+                <span id="demoBadge" class="demo-badge">DEMO MODE</span>
+                <label class="switch">
+                    <input type="checkbox" id="demoToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">Demo Mode</span>
+            </div>
         </div>
         
         <div class="status" id="status">Connecting to MCP server...</div>
@@ -309,11 +372,16 @@
         const MCP_SERVER_URL = 'https://mcp-lodestar-production.up.railway.app/mcp';
         let sessionId = generateSessionId(); // Use consistent session ID
         let isConnected = false;
-        const APP_VERSION = '2.0.4'; // Cache busting
+        const APP_VERSION = '2.0.8'; // Cache busting
+        let demoMode = true;
 
         // Initialize connection
         async function initializeConnection() {
             try {
+                if (demoMode) {
+                    updateStatus('Demo Mode - No server connection required', 'connected');
+                    return;
+                }
                 const response = await fetch(MCP_SERVER_URL, {
                     method: 'POST',
                                             headers: {
@@ -897,7 +965,30 @@
         }
 
         // Initialize on page load
-        window.addEventListener('load', initializeConnection);
+        window.addEventListener('load', () => {
+            const toggle = document.getElementById('demoToggle');
+            const badge = document.getElementById('demoBadge');
+            const applyDemoUi = () => {
+                if (demoMode) {
+                    badge.textContent = 'DEMO MODE';
+                    badge.classList.remove('live');
+                } else {
+                    badge.textContent = 'LIVE MODE';
+                    badge.classList.add('live');
+                }
+            };
+            toggle.addEventListener('change', async () => {
+                demoMode = toggle.checked;
+                applyDemoUi();
+                // Reset session and status on toggle
+                sessionId = generateSessionId();
+                document.getElementById('chatMessages').innerHTML = '';
+                updateStatus('Connecting...', '');
+                await initializeConnection();
+            });
+            applyDemoUi();
+            initializeConnection();
+        });
     </script>
 </body>
 </html>
