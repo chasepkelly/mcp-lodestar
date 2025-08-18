@@ -27,17 +27,12 @@ export const configSchema = z.object({
 });
 
 export default function createServer({
-  sessionId,
   config,
 }: {
-  sessionId?: string;
   config: z.infer<typeof configSchema>;
 }) {
   Logger.setLogLevel(LogLevel.INFO);
   Logger.info('Creating LodeStar MCP Server...');
-  if (sessionId) {
-    Logger.info(`Session ID: ${sessionId}`);
-  }
   
   const server = new Server(
     {
@@ -115,9 +110,65 @@ export default function createServer({
   return server;
 }
 
+// Railway/HTTP transport support
+async function startHttpServer() {
+  try {
+    Logger.info('Starting HTTP server for Railway deployment...');
+    
+    // Use environment variables for configuration
+    const config = {
+      apiKey: process.env.LODESTAR_API_KEY,
+      clientId: process.env.LODESTAR_CLIENT_ID,
+      clientSecret: process.env.LODESTAR_CLIENT_SECRET,
+      apiBaseUrl: process.env.LODESTAR_API_BASE_URL,
+    };
+
+    const server = createServer({ config });
+    
+    // For Railway, we need to create a simple HTTP server that can handle MCP requests
+    // This is a simplified approach - in production you might want to use a proper HTTP transport
+    const port = process.env.PORT || 3000;
+    
+    // Create a basic HTTP server for health checks
+    const http = await import('http');
+    const httpServer = http.createServer((req, res) => {
+      if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', service: 'LodeStar MCP Server' }));
+      } else {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    });
+
+    httpServer.listen(port, () => {
+      Logger.info(`HTTP server listening on port ${port}`);
+      Logger.info('LodeStar MCP Server ready for Railway deployment');
+    });
+
+    // Handle shutdown
+    process.on('SIGINT', async () => {
+      Logger.info('Shutting down HTTP server...');
+      httpServer.close();
+      await server.close();
+      process.exit(0);
+    });
+
+  } catch (error) {
+    Logger.error('Failed to start HTTP server', error);
+    process.exit(1);
+  }
+}
+
 // STDIO compatibility for local development
 async function main() {
   try {
+    // Check if we're in Railway/HTTP mode
+    if (process.env.RAILWAY_ENVIRONMENT || process.env.PORT) {
+      await startHttpServer();
+      return;
+    }
+
     // Use environment variables for local development
     const config = {
       apiKey: process.env.LODESTAR_API_KEY,
@@ -147,8 +198,7 @@ async function main() {
 }
 
 // Only run main() if this file is executed directly
-// Use CommonJS check for Smithery compatibility
-if (require.main === module) {
+if (typeof import.meta !== 'undefined' && import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error) => {
     Logger.error('Fatal error', error);
     process.exit(1);
