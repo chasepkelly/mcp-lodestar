@@ -142,7 +142,8 @@ async function main() {
 }
 
 // Only run main() if this file is executed directly
-if (typeof import.meta !== 'undefined' && import.meta.url === `file://${process.argv[1]}`) {
+// Use CommonJS check for Smithery compatibility
+if (require.main === module) {
   main().catch((error) => {
     Logger.error('Fatal error', error);
     process.exit(1);
