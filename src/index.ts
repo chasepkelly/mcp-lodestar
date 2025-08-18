@@ -134,12 +134,56 @@ async function startHttpServer() {
     // Connect the server to the transport
     await server.connect(transport);
     
-    Logger.info('Streamable HTTP transport connected successfully');
-    Logger.info('LodeStar MCP Server ready for Railway deployment with N8N compatibility');
+    // Create HTTP server to handle requests
+    const port = process.env.PORT || 3000;
+    const http = await import('http');
+    
+    const httpServer = http.createServer(async (req, res) => {
+      try {
+        Logger.info(`Received request: ${req.method} ${req.url}`);
+        
+        // Handle health check
+        if (req.url === '/health') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            status: 'ok', 
+            service: 'LodeStar MCP Server',
+            version: '2.1.2'
+          }));
+          return;
+        }
+        
+        // Handle MCP requests
+        if (req.url === '/mcp' || req.url?.startsWith('/mcp/')) {
+          // Let the StreamableHTTPServerTransport handle MCP requests
+          await transport.handleRequest(req, res);
+          return;
+        }
+        
+        // Default response
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          error: 'Not Found',
+          message: 'LodeStar MCP Server - use /mcp for MCP requests or /health for health check'
+        }));
+        
+      } catch (error) {
+        Logger.error('Error handling request:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal Server Error' }));
+      }
+    });
+
+    httpServer.listen(port, () => {
+      Logger.info(`HTTP server listening on port ${port}`);
+      Logger.info('Streamable HTTP transport connected successfully');
+      Logger.info('LodeStar MCP Server ready for Railway deployment with N8N compatibility');
+    });
 
     // Handle shutdown
     process.on('SIGINT', async () => {
       Logger.info('Shutting down Streamable HTTP server...');
+      httpServer.close();
       await server.close();
       process.exit(0);
     });
