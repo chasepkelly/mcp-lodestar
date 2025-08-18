@@ -636,23 +636,53 @@
         function parseMessageForTool(message) {
             const lowerMessage = message.toLowerCase();
             
+            function toStateAbbreviation(stateInput) {
+                if (!stateInput) return '';
+                const s = stateInput.trim().toLowerCase();
+                const map = {
+                    'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA','colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA','hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS','kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA','michigan':'MI','minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT','nebraska':'NE','nevada':'NV','new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND','ohio':'OH','oklahoma':'OK','oregon':'OR','pennsylvania':'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD','tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA','washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY','district of columbia':'DC','dc':'DC'
+                };
+                if (s.length === 2) return s.toUpperCase();
+                return map[s] || '';
+            }
+            
+            function extractStreetCityState(text) {
+                // Pattern 1: 123 Main St, Austin, TX 78736
+                let m = text.match(/(\d{1,6}\s+[^,\n]+?),?\s+([A-Za-z .'-]+?),?\s+([A-Za-z]{2}|[A-Za-z ]+)(?:\s+(\d{5}))?/i);
+                if (m) {
+                    const state = toStateAbbreviation(m[3]);
+                    if (state) {
+                        return { address: m[1].trim(), city: m[2].trim(), state, zip: m[4] || '' };
+                    }
+                }
+                // Pattern 2: 456 Elm Rd in Dallas, Texas 75201
+                m = text.match(/(\d{1,6}\s+[^,\n]+?)\s+(?:in|at)\s+([A-Za-z .'-]+?),?\s+([A-Za-z]{2}|[A-Za-z ]+)(?:\s+(\d{5}))?/i);
+                if (m) {
+                    const state = toStateAbbreviation(m[3]);
+                    if (state) {
+                        return { address: m[1].trim(), city: m[2].trim(), state, zip: m[4] || '' };
+                    }
+                }
+                return null;
+            }
+            
             // Closing cost calculations
-            if (lowerMessage.includes('closing cost') || lowerMessage.includes('closing costs')) {
-                const addressMatch = message.match(/(\d+[^,]+),?\s*([^,]+),?\s*([A-Z]{2})\s*(\d{5})?/);
-                if (addressMatch) {
+            if (lowerMessage.includes('closing cost')) {
+                const parsed = extractStreetCityState(message);
+                if (parsed) {
                     return {
                         name: 'closing_cost_calculations',
                         arguments: {
-                            state: addressMatch[3],
-                            county: 'Travis', // Default for demo
-                            township: addressMatch[2].trim(),
+                            state: parsed.state,
+                            county: 'Travis', // Demo default
+                            township: parsed.city,
                             search_type: 'CFPB',
                             purpose: '11',
                             filename: `demo-${Date.now()}`,
                             loan_amount: 300000,
                             purchase_price: 375000,
                             close_date: '2025-09-15',
-                            address: addressMatch[0],
+                            address: `${parsed.address}, ${parsed.city}, ${parsed.state}${parsed.zip ? ' ' + parsed.zip : ''}`,
                             include_pdf: 1,
                             include_property_tax: 1,
                             include_section: 1,
@@ -664,13 +694,14 @@
             
             // Property tax
             if (lowerMessage.includes('property tax') || lowerMessage.includes('tax info')) {
+                const parsed = extractStreetCityState(message) || { city: 'Austin', state: 'TX', address: '123 Main Street' };
                 return {
                     name: 'property_tax',
                     arguments: {
-                        state: 'TX',
+                        state: parsed.state || 'TX',
                         county: 'Travis',
-                        city: 'Austin',
-                        address: '123 Main Street',
+                        city: parsed.city || 'Austin',
+                        address: parsed.address || '123 Main Street',
                         close_date: '2025-09-15',
                         file_name: `tax-demo-${Date.now()}`,
                         purchase_price: 375000
