@@ -133,7 +133,7 @@ async function main() {
 }
 
 // Only run main() if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (typeof import.meta !== 'undefined' && import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error) => {
     Logger.error('Fatal error', error);
     process.exit(1);
