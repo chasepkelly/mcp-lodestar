@@ -155,6 +155,16 @@ async function startHttpServer() {
         
         // Handle MCP requests
         if (req.url === '/mcp' || req.url?.startsWith('/mcp/')) {
+          // Ensure proper Accept headers for N8N compatibility
+          const acceptHeader = req.headers.accept || '';
+          if (!acceptHeader.includes('application/json') && !acceptHeader.includes('text/event-stream')) {
+            // Add both content types if neither is present
+            req.headers.accept = 'application/json, text/event-stream';
+          } else if (acceptHeader.includes('text/event-stream') && !acceptHeader.includes('application/json')) {
+            // Add application/json if only text/event-stream is present
+            req.headers.accept = 'application/json, text/event-stream';
+          }
+          
           // Let the StreamableHTTPServerTransport handle MCP requests
           await transport.handleRequest(req, res);
           return;
