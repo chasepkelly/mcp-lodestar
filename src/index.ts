@@ -2,7 +2,7 @@
 // src/index.ts
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -126,17 +126,22 @@ async function startHttpServer() {
 
     const server = createServer({ config });
     
-    // Create Streamable HTTP transport for proper MCP communication
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => `lodestar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    // Create axios instance and tool handlers for HTTP server
+    const apiBaseUrl = config.apiBaseUrl || 'https://api.lodestar.com';
+    const axiosInstance = axios.create({
+      baseURL: apiBaseUrl,
+      timeout: CONSTANTS.REQUEST_TIMEOUT_MS,
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    // Connect the server to the transport
-    await server.connect(transport);
+    const sessionManager = SessionManager.getInstance(axiosInstance);
+    const toolHandlers = new ToolHandlers(axiosInstance, sessionManager);
     
     // Create HTTP server to handle requests
     const port = process.env.PORT || 3000;
     const http = await import('http');
+    
+    // Store active sessions
+    const activeSessions = new Map();
     
     const httpServer = http.createServer(async (req, res) => {
       try {
@@ -144,7 +149,7 @@ async function startHttpServer() {
         
         // Handle health check
         if (req.url === '/health') {
-                    res.writeHead(200, { 
+          res.writeHead(200, { 
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -153,7 +158,7 @@ async function startHttpServer() {
           res.end(JSON.stringify({
             status: 'ok',
             service: 'LodeStar MCP Server',
-            version: '2.1.6'
+            version: '2.1.7'
           }));
           return;
         }
@@ -177,18 +182,122 @@ async function startHttpServer() {
           res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Mcp-Session-Id');
           
-          // Ensure proper Accept headers for N8N compatibility
-          const acceptHeader = req.headers.accept || '';
-          if (!acceptHeader.includes('application/json') && !acceptHeader.includes('text/event-stream')) {
-            // Add both content types if neither is present
-            req.headers.accept = 'application/json, text/event-stream';
-          } else if (acceptHeader.includes('text/event-stream') && !acceptHeader.includes('application/json')) {
-            // Add application/json if only text/event-stream is present
-            req.headers.accept = 'application/json, text/event-stream';
-          }
+          // Parse request body
+          let body = '';
+          req.on('data', chunk => {
+            body += chunk.toString();
+          });
           
-          // Let the StreamableHTTPServerTransport handle MCP requests
-          await transport.handleRequest(req, res);
+          req.on('end', async () => {
+            try {
+              const request = JSON.parse(body);
+              const sessionId = req.headers['mcp-session-id'] as string;
+              
+              Logger.info(`Processing MCP request: ${request.method} for session: ${sessionId}`);
+              
+              // Handle initialize request
+              if (request.method === 'initialize') {
+                activeSessions.set(sessionId, { initialized: true, timestamp: Date.now() });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: request.id,
+                  result: {
+                    protocolVersion: '2024-11-05',
+                    capabilities: {
+                      tools: {},
+                      resources: {},
+                      prompts: {}
+                    },
+                    serverInfo: {
+                      name: 'LodeStar MCP Server',
+                      version: '2.1.7'
+                    }
+                  }
+                }));
+                return;
+              }
+              
+              // Check if session is initialized
+              if (!activeSessions.has(sessionId)) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  jsonrpc: '2.0',
+                  error: {
+                    code: -32001,
+                    message: 'Session not found'
+                  },
+                  id: request.id
+                }));
+                return;
+              }
+              
+              // Handle tools/call request
+              if (request.method === 'tools/call') {
+                const toolName = request.params.name;
+                const arguments_ = request.params.arguments;
+                
+                Logger.info(`Calling tool: ${toolName}`);
+                
+                try {
+                  const result = await toolHandlers.handleToolCall(toolName, arguments_);
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: request.id,
+                    result: result
+                  }));
+                } catch (error) {
+                  Logger.error(`Tool call error: ${error}`);
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: request.id,
+                    error: {
+                      code: -32603,
+                      message: error instanceof Error ? error.message : 'Internal error'
+                    }
+                  }));
+                }
+                return;
+              }
+              
+              // Handle tools/list request
+              if (request.method === 'tools/list') {
+                const tools = toolHandlers.getToolDefinitions();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: request.id,
+                  result: tools
+                }));
+                return;
+              }
+              
+              // Unknown method
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                id: request.id,
+                error: {
+                  code: -32601,
+                  message: 'Method not found'
+                }
+              }));
+              
+            } catch (error) {
+              Logger.error('Error processing MCP request:', error);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                error: {
+                  code: -32700,
+                  message: 'Parse error'
+                },
+                id: null
+              }));
+            }
+          });
           return;
         }
         
@@ -205,16 +314,16 @@ async function startHttpServer() {
         res.end(JSON.stringify({ error: 'Internal Server Error' }));
       }
     });
-
-    httpServer.listen(port, () => {
+    
+        httpServer.listen(port, () => {
       Logger.info(`HTTP server listening on port ${port}`);
-      Logger.info('Streamable HTTP transport connected successfully');
-      Logger.info('LodeStar MCP Server ready for Railway deployment with N8N compatibility');
+      Logger.info('Custom HTTP MCP server ready for Railway deployment');
+      Logger.info('LodeStar MCP Server ready for chat app compatibility');
     });
 
     // Handle shutdown
     process.on('SIGINT', async () => {
-      Logger.info('Shutting down Streamable HTTP server...');
+      Logger.info('Shutting down HTTP server...');
       httpServer.close();
       await server.close();
       process.exit(0);
