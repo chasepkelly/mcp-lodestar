@@ -648,6 +648,70 @@
             return map[s] || '';
         }
 
+        // Amount parsing helpers (global)
+        function parseMoneyToken(token) {
+            if (!token) return NaN;
+            let s = String(token).trim().replace(/[$,\s]/g, '').toLowerCase();
+            const mult = s.endsWith('k') ? 1000 : s.endsWith('m') ? 1000000 : 1;
+            if (mult > 1) s = s.slice(0, -1);
+            const val = Number(s);
+            return isNaN(val) ? NaN : Math.round(val * mult);
+        }
+        function parsePercentageToken(token) {
+            if (!token) return NaN;
+            let s = String(token).trim().replace(/[%\s]/g, '');
+            const val = Number(s);
+            return isNaN(val) ? NaN : val;
+        }
+        function parsePriceAndLoanFromMessage(message) {
+            const text = message.toLowerCase();
+            let purchasePrice = NaN;
+            let loanAmount = NaN;
+            let ltvPercent = NaN;
+            let downPercent = NaN;
+            // explicit price
+            const priceMatch = message.match(/(purchase|price|home|sale)[^\d$]*([$\d.,]+\s*[km]?)/i);
+            if (priceMatch) purchasePrice = parseMoneyToken(priceMatch[2]);
+            // explicit loan
+            const loanMatch = message.match(/(loan|mortgage)[^\d$]*([$\d.,]+\s*[km]?)/i);
+            if (loanMatch) loanAmount = parseMoneyToken(loanMatch[2]);
+            // cash purchase
+            if (/\bcash\b/.test(text)) {
+                if (isNaN(purchasePrice)) {
+                    const anyMoney = message.match(/([$\d.,]+\s*[km]?)/i);
+                    if (anyMoney) purchasePrice = parseMoneyToken(anyMoney[1]);
+                }
+                loanAmount = 0;
+            }
+            // LTV or down payment
+            const ltvMatch = message.match(/(ltv)[^\d%]*([\d.]+%)/i);
+            if (ltvMatch) ltvPercent = parsePercentageToken(ltvMatch[2]);
+            const downMatch = message.match(/(down|down\s*payment)[^\d%]*([\d.]+%)/i);
+            if (downMatch) downPercent = parsePercentageToken(downMatch[2]);
+            // Numbers without labels
+            if (isNaN(purchasePrice) || isNaN(loanAmount)) {
+                const moneyTokens = Array.from(message.matchAll(/([$\d.,]+\s*[km]?)/gi))
+                    .map(m => parseMoneyToken(m[1]))
+                    .filter(n => !isNaN(n));
+                if (moneyTokens.length >= 1 && isNaN(purchasePrice)) purchasePrice = moneyTokens[0];
+                if (moneyTokens.length >= 2 && isNaN(loanAmount)) loanAmount = moneyTokens[1];
+            }
+            // Infer missing
+            if (!isNaN(purchasePrice) && !isNaN(downPercent) && isNaN(loanAmount)) {
+                loanAmount = Math.round(purchasePrice * (1 - downPercent / 100));
+            }
+            if (!isNaN(purchasePrice) && !isNaN(ltvPercent) && isNaN(loanAmount)) {
+                loanAmount = Math.round(purchasePrice * (ltvPercent / 100));
+            }
+            if (!isNaN(loanAmount) && isNaN(purchasePrice) && !isNaN(ltvPercent)) {
+                purchasePrice = Math.round(loanAmount / (ltvPercent / 100));
+            }
+            // Defaults
+            if (isNaN(purchasePrice)) purchasePrice = 375000;
+            if (isNaN(loanAmount)) loanAmount = Math.round(purchasePrice * 0.8);
+            return { purchasePrice, loanAmount };
+        }
+
         // Address parsing helpers (global so multiple features can reuse them)
         function extractStreetCityState(text) {
             const cleaned = text.replace(/[!?]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -721,7 +785,8 @@
                     const lower = message.toLowerCase();
                     if (toolCall?.name === 'closing_cost_calculations' || lower.includes('closing cost')) {
                         const region = inferRegionFromMessage(message);
-                        const demo = synthesizeDemoClosingCosts(region.city, region.state);
+                        const amt = parsePriceAndLoanFromMessage(message);
+                        const demo = synthesizeDemoClosingCosts(region.city, region.state, amt.purchasePrice, amt.loanAmount);
                         addMessage({ result: demo });
                         return;
                     }
@@ -807,6 +872,7 @@
             if (lowerMessage.includes('closing cost')) {
                 const parsed = extractStreetCityState(message);
                 if (parsed) {
+                    const amt = parsePriceAndLoanFromMessage(message);
                     return {
                         name: 'closing_cost_calculations',
                         arguments: {
@@ -816,8 +882,8 @@
                             search_type: 'CFPB',
                             purpose: '11',
                             filename: `demo-${Date.now()}`,
-                            loan_amount: 300000,
-                            purchase_price: 375000,
+                            loan_amount: amt.loanAmount,
+                            purchase_price: amt.purchasePrice,
                             close_date: '2025-09-15',
                             address: `${parsed.address}, ${parsed.city}, ${parsed.state}${parsed.zip ? ' ' + parsed.zip : ''}`,
                             include_pdf: 1,
@@ -831,6 +897,7 @@
                 const cityState = extractCityState(message);
                 if (cityState) {
                     const placeholderStreet = cityState.state === 'NY' ? '123 Broadway' : '123 Main Street';
+                    const amt = parsePriceAndLoanFromMessage(message);
                     return {
                         name: 'closing_cost_calculations',
                         arguments: {
@@ -840,8 +907,8 @@
                             search_type: 'CFPB',
                             purpose: '11',
                             filename: `demo-${Date.now()}`,
-                            loan_amount: 300000,
-                            purchase_price: 375000,
+                            loan_amount: amt.loanAmount,
+                            purchase_price: amt.purchasePrice,
                             close_date: '2025-09-15',
                             address: `${placeholderStreet}, ${cityState.city}, ${cityState.state}`,
                             include_pdf: 1,
@@ -905,26 +972,27 @@
             return { city: 'Austin', state: 'TX' };
         }
 
-        function synthesizeDemoClosingCosts(city, state) {
+        function synthesizeDemoClosingCosts(city, state, purchasePrice, loanAmount) {
             // Simple regional factors for demo variability
-            const basePrice = 375000;
+            const basePrice = Math.max(100000, Number(purchasePrice) || 375000);
+            const baseLoan = Math.max(0, Number(loanAmount) || Math.round(basePrice * 0.8));
             const regionalFactor = { NY: 1.35, CA: 1.25, FL: 1.1, TX: 1.0 }[state] || 1.15;
             const rnd = (min, max) => Math.round(min + (max - min) * Math.random());
 
             const titleFees = {
-                'Settlement Fee': rnd(850, 1150) * regionalFactor,
-                'Title Search': rnd(350, 550) * regionalFactor,
-                'Title Examination': rnd(175, 275) * regionalFactor,
-                'Document Preparation': rnd(125, 200) * regionalFactor,
-                'Notary Fees': rnd(35, 75) * regionalFactor
+                'Settlement Fee': Math.round(rnd(800, 1100) * regionalFactor + basePrice * 0.0002),
+                'Title Search': Math.round(rnd(325, 525) * regionalFactor),
+                'Title Examination': Math.round(rnd(175, 275) * regionalFactor),
+                'Document Preparation': Math.round(rnd(120, 190) * regionalFactor),
+                'Notary Fees': Math.round(rnd(35, 75) * regionalFactor)
             };
             const titleInsurance = {
-                "Lenders Policy": rnd(900, 1300) * regionalFactor,
-                "Owners Policy": rnd(1200, 1800) * regionalFactor
+                "Lenders Policy": Math.round((900 + baseLoan * 0.0008) * regionalFactor),
+                "Owners Policy": Math.round((1200 + basePrice * 0.001) * regionalFactor)
             };
             const recordingFees = {
-                'Deed Recording': rnd(90, 160) * regionalFactor,
-                'Mortgage Recording': rnd(140, 220) * regionalFactor,
+                'Deed Recording': Math.round(rnd(90, 160) * regionalFactor),
+                'Mortgage Recording': Math.round(rnd(140, 220) * regionalFactor),
                 'Transfer Tax': Math.round(basePrice * (state === 'NY' ? 0.014 : state === 'CA' ? 0.011 : state === 'FL' ? 0.009 : 0.01))
             };
 
