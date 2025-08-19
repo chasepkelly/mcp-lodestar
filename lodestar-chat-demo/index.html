@@ -358,7 +358,7 @@
         const MCP_SERVER_URL = 'https://mcp-lodestar-production.up.railway.app/mcp';
         let sessionId = generateSessionId(); // Use consistent session ID
         let isConnected = false;
-        const APP_VERSION = '2.0.10'; // Cache busting
+        const APP_VERSION = '2.0.11'; // Cache busting
 
         // Initialize connection
         async function initializeConnection() {
@@ -985,27 +985,6 @@
 
         // Initialize on page load
         window.addEventListener('load', () => {
-            const toggle = document.getElementById('demoToggle');
-            const badge = document.getElementById('demoBadge');
-            const applyDemoUi = () => {
-                if (demoMode) {
-                    badge.textContent = 'DEMO MODE';
-                    badge.classList.remove('live');
-                } else {
-                    badge.textContent = 'LIVE MODE';
-                    badge.classList.add('live');
-                }
-            };
-            toggle.addEventListener('change', async () => {
-                demoMode = toggle.checked;
-                applyDemoUi();
-                // Reset session and status on toggle
-                sessionId = generateSessionId();
-                document.getElementById('chatMessages').innerHTML = '';
-                updateStatus('Connecting...', '');
-                await initializeConnection();
-            });
-            applyDemoUi();
             initializeConnection();
         });
     </script>
